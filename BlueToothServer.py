@@ -34,7 +34,7 @@ for cmd in commands:
 def read_request(characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
     """Handle read requests"""
     print(f"Read request for {characteristic.uuid}")
-    return bytearray(b"Hello from BLE Server!")
+    return characteristic.value
 
 def write_request(characteristic: BlessGATTCharacteristic, value: Any, **kwargs):
     """Handle write requests"""
@@ -58,7 +58,7 @@ async def run_server_with_custom_ads():
         | GATTCharacteristicProperties.write
         | GATTCharacteristicProperties.indicate
     )
-    permissions = GATTAttributePermissions.readable | GATTAttributePermissions.writeable
+    permissions = GATTAttributePermissions.readable
     await server.add_new_characteristic(
         constants.SERVICE_UUID,
         constants.CHARACTERISTIC_UUID,
