@@ -12,6 +12,15 @@ from bless import (  # type: ignore
     GATTAttributePermissions,
 )
 
+#reset bluetooth via commandline in subprocess
+commands = [['sudo', 'rfkill', "unblock", "bluetooth"],
+            ['sudo', 'service', "bluetooth", "restart"]]
+
+for cmd in commands:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    print(result.stdout)
+    print(result.stderr)
+
 #setting up bluetooth via commandline in subprocess
 #turn off bt security
 commands = [['sudo', 'btmgmt', "power", "on"],
