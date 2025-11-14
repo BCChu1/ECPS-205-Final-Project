@@ -11,7 +11,7 @@ from bless import (  # type: ignore
 )
 #setting up bluetooth via commandline in subprocess
 process = subprocess.Popen( ['bluetoothctl'], stdin= subprocess.PIPE, stdout= subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-commands = "power on\npairable on\nquit\n"
+commands = "power on\npairable on\nadvertise on\n"
 stdout, stderr = process.communicate(input=commands)
 
 print(stdout)
