@@ -14,6 +14,9 @@ class HeartRateMonitor(object):
 
     def __init__(self, print_raw=False, print_result=False):
         self.bpm = 0
+        self.sp02 = 0
+        self.rawRed = 0
+        self.rawIR = 0
         if print_raw is True:
             print('IR, Red')
         self.print_raw = print_raw
@@ -33,6 +36,8 @@ class HeartRateMonitor(object):
                 # grab all the data and stash it into arrays
                 while num_bytes > 0:
                     red, ir = sensor.read_fifo()
+                    self.rawIR = ir
+                    self.rawRed = red
                     num_bytes -= 1
                     ir_data.append(ir)
                     red_data.append(red)
@@ -56,6 +61,8 @@ class HeartRateMonitor(object):
                                 print("Finger not detected")
                         if self.print_result:
                             print("BPM: {0}, SpO2: {1}".format(self.bpm, spo2))
+                    if valid_spo2:
+                        self.sp02 = spo2
 
             time.sleep(self.LOOP_TIME)
 

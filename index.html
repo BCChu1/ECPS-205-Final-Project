@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MAX30102 Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root {
+    --bg: #ffffff;
+    --fg: #000000;
+    --card: #f0f0f0;
+}
+
+.dark {
+    --bg: #121212;
+    --fg: #ffffff;
+    --card: #1f1f1f;
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+}
+
+button {
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 columns */
+    grid-gap: 20px;
+}
+
+.card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 10px;
+}
+
+h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    text-align: center;
+}
+</style>
+</head>
+
+<body>
+<button onclick="toggleTheme()">Toggle Light/Dark Mode</button>
+
+<div class="grid">
+    <div class="card">
+        <h3>BPM</h3>
+        <canvas id="bpmChart"></canvas>
+    </div>
+    <div class="card">
+        <h3>SpO₂</h3>
+        <canvas id="spo2Chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>IR</h3>
+        <canvas id="irChart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Red</h3>
+        <canvas id="redChart"></canvas>
+    </div>
+</div>
+
+<script>
+let dark = false;
+function toggleTheme() {
+    dark = !dark;
+    document.body.classList.toggle("dark", dark);
+}
+
+// ------------------- CREATE CHARTS -------------------
+function makeChart(ctx, label, color) {
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: label, data: [], borderWidth: 2, borderColor: color, tension: 0.3 }] },
+        options: {
+            responsive: true,
+            animation: false,
+            scales: {
+                x: { display: false },
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+const bpmChart = makeChart(document.getElementById("bpmChart"), "BPM", "#0078ff");
+const spo2Chart = makeChart(document.getElementById("spo2Chart"), "SpO₂", "#00c853");
+const irChart  = makeChart(document.getElementById("irChart"), "IR", "#ff9800");
+const redChart = makeChart(document.getElementById("redChart"), "RED", "#e53935");
+
+// ------------------- WEBSOCKET -------------------
+let ws = new WebSocket("ws://" + window.location.hostname + ":8765");
+
+ws.onopen = () => console.log("WebSocket connected");
+ws.onclose = () => console.log("WebSocket disconnected");
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    const t = new Date(data.timestamp * 1000).toLocaleTimeString();
+
+    function push(chart, value) {
+        chart.data.labels.push(t);
+        chart.data.datasets[0].data.push(value);
+        if(chart.data.labels.length > 60){
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+        chart.update();
+    }
+
+    push(bpmChart, data.bpm);
+    push(spo2Chart, data.spo2);
+    push(irChart, data.ir);
+    push(redChart, data.red);
+};
+</script>
+</body>
+</html>
