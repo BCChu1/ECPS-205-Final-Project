@@ -20,6 +20,7 @@ for cmd in commands:
     result = subprocess.run(cmd, capture_output=True, text=True)
     print(result.stdout)
     print(result.stderr)
+time.sleep(1)
 
 #setting up bluetooth via commandline in subprocess
 #turn off bt security
