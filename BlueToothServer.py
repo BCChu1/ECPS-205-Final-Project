@@ -84,7 +84,7 @@ async def run_server_with_custom_ads():
             # Update the characteristic value with the current BPM
             BPM = hrm.bpm
             print(f"Updating BPM value to: {BPM:.2f}")
-            server.get_characteristic(constants.CHARACTERISTIC_UUID).value = bytearray(f"BPM: {BPM:.2f}", 'utf-8')
+            server.get_characteristic(constants.CHARACTERISTIC_UUID).value = bytearray(f"{BPM:.2f}", 'utf-8')
             server.update_value(constants.SERVICE_UUID, constants.CHARACTERISTIC_UUID)
             await asyncio.sleep(1)
     except KeyboardInterrupt:
