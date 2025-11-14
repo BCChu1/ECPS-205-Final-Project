@@ -11,6 +11,7 @@ from bless import (  # type: ignore
     GATTCharacteristicProperties,
     GATTAttributePermissions,
 )
+
 #setting up bluetooth via commandline in subprocess
 #turn off bt security
 commands = [['sudo', 'btmgmt', "power", "on"],
@@ -70,10 +71,27 @@ async def run_server_with_custom_ads():
 
     print("Server advertising with custom name...")
 
+    #change print_raw and print_result to enable or disable printing of raw and processed data
+    hrm = HeartRateMonitor(print_raw=False, print_result=False)
+    # Initialize the HeartRateMonitor object
+    # Set print_raw to True to avoid printing raw data
+    # Set print_result to True to print the calculated results
     try:
+        print("Starting heart rate sensor...")
+        # Start the heart rate sensor
+        hrm.start_sensor()
         while True:
+            # Update the characteristic value with the current BPM
+            BPM = hrm.bpm
+            print(f"Updating BPM value to: {BPM:.2f}")
+            server.get_characteristic(constants.CHARACTERISTIC_UUID).value = bytearray(f"BPM: {BPM:.2f}", 'utf-8')
+            server.update_value(constants.SERVICE_UUID, constants.CHARACTERISTIC_UUID)
             await asyncio.sleep(1)
     except KeyboardInterrupt:
+        # Stop the sensor after keyboard interrupt
+        # Print a message indicating the sensor has stopped
+        print('sensor stopped!')
+        hrm.stop_sensor()
         await server.stop()
 
 if __name__ == "__main__":
