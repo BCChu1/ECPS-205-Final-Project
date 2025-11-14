@@ -12,12 +12,19 @@ from bless import (  # type: ignore
     GATTAttributePermissions,
 )
 #setting up bluetooth via commandline in subprocess
-process = subprocess.Popen( ['bluetoothctl'], stdin= subprocess.PIPE, stdout= subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-commands = "power on\npairable on\nadvertise on\n"
-stdout, stderr = process.communicate(input=commands)
+#turn off bt security
+commands = [['sudo', 'btmgmt', "power", "on"],
+            ['sudo', 'btmgmt', "sc", "off"],
+            ['sudo', 'btmgmt', "le", "on"],
+            ['sudo', 'btmgmt', "ssp", "off"],
+            ['sudo', 'btmgmt', "bondable", "on"],
+            ['sudo', 'btmgmt', "pairable", "on"],
+            ['sudo', 'btmgmt', "connectable", "on"]]
 
-print(stdout)
-print(stderr)
+for cmd in commands:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    print(result.stdout)
+    print(result.stderr)
 
 # # Define your service and characteristic UUIDs
 # SERVICE_UUID = "7436b48e-96ed-4b8f-916d-1f1d25964635"
@@ -37,6 +44,9 @@ async def run_server_with_custom_ads():
     # Custom advertisement data
     server = BlessServer(
         name=constants.BLUETOOTH_SERVER_LOCALNAME,  # This appears in the advertisement
+        connectable=True,
+        bondable=True,             # allows pairing
+        security_level="low"       # no passcode confirmation
     )
     server.read_request_func = read_request
     server.write_request_func = write_request
