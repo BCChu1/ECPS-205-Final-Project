@@ -2,16 +2,93 @@ import asyncio
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 import constants
+import tkinter as tk
 
 # Match these with your server UUIDs
 SERVICE_UUID = constants.SERVICE_UUID
 CHAR_UUID = constants.CHARACTERISTIC_UUID
+heartRateValue : float = 0.0
+
+class SensorDisplay:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Heartrate Monitor")
+        self.root.geometry("400x300")
+        
+        # Create label for sensor name
+        self.title_label = tk.Label(
+            root, 
+            text="Heart Rate", 
+            font=("Arial", 16, "bold")
+        )
+        self.title_label.pack(pady=20)
+        
+        # Create label for sensor value (large display)
+        self.value_label = tk.Label(
+            root, 
+            text="--", 
+            font=("Arial", 48, "bold"),
+            fg="blue"
+        )
+        self.value_label.pack(pady=20)
+        
+        # Create label for units
+        self.unit_label = tk.Label(
+            root, 
+            text="BPM", 
+            font=("Arial", 14)
+        )
+        self.unit_label.pack()
+        
+        # # Create timestamp label
+        # self.time_label = tk.Label(
+        #     root, 
+        #     text="Last updated: --", 
+        #     font=("Arial", 10)
+        # )
+        # self.time_label.pack(pady=10)
+        
+    def read_sensor(self):
+        global heartRateValue
+        return heartRateValue
+    
+    async def update_sensor(self):
+        """Update the sensor reading"""
+        try:
+            while True:
+                # Read sensor value
+                value = self.read_sensor()
+            
+                # Update the display
+                self.value_label.config(text=f"{value}")
+                await asyncio.sleep(1)      #may need some adjusting in the future, currently server sends about 1/sec
+                #  # Update timestamp
+                # current_time = time.strftime("%H:%M:%S")
+                # self.time_label.config(text=f"Last updated: {current_time}")
+            
+        except Exception as e:
+            self.value_label.config(text="ERROR")
+            print(f"Error reading sensor: {e}")
+        
+        # # Schedule next update (1000ms = 1 second)
+        # self.root.after(1000, self.update_sensor)
+
+root = tk.Tk()
+app = SensorDisplay(root)
+
+async def update_UI(root, interval = 0.05):
+    while True:
+        root.update()
+        await asyncio.sleep(interval)
 
 def notification_handler(characteristic: BleakGATTCharacteristic, data: bytearray):
+    global heartRateValue
     """Simple notification handler which prints the data received."""
+    heartRateValue = float(data)
     print(f"%s: %r", characteristic.description, data)
 
 async def run_client():
+    global root, app
     print("Scanning for BLE devices...")
     
     # Scan for devices
@@ -52,6 +129,7 @@ async def run_client():
                     #value = await client.read_gatt_char(CHAR_UUID)
                     #print(f"Read value: {value.decode()}")
                     await client.start_notify(CHAR_UUID, notification_handler)
+                    await asyncio.gather(update_UI(root), app.update_sensor())
         
             # Write data to characteristic
             #data_to_send = b"Hello from client!"
