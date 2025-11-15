@@ -1,0 +1,5 @@
+bleak==0.22.3
+bless==0.2.6
+dbus-fast==2.44.5
+dbus-next==0.2.3
+typing_extensions==4.15.0
