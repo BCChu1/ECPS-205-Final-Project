@@ -13,32 +13,140 @@ class SensorDisplay:
     def __init__(self, root):
         self.root = root
         self.root.title("Heartrate Monitor")
-        self.root.geometry("400x300")
+        self.root.geometry("870x250")
         
-        # Create label for sensor name
-        self.title_label = tk.Label(
-            root, 
-            text="Heart Rate", 
+        # General Frame for all the stats
+        self.stats_frame = tk.Frame(root)
+        self.stats_frame.pack(side="top", fill="x", padx=20, pady=10, anchor="n")
+
+        # Create frame/labels for BPM (Beats Per Minute)
+        self.bpm_frame = tk.Frame(self.stats_frame)
+        self.bpm_frame.pack(side="left", padx=15)
+
+        self.bpm_label = tk.Label(
+            self.bpm_frame,
+            text="BPM",
             font=("Arial", 16, "bold")
         )
-        self.title_label.pack(pady=20)
-        
-        # Create label for sensor value (large display)
-        self.value_label = tk.Label(
-            root, 
+        self.bpm_label.pack()
+        self.bpmSubtitle_label = tk.Label(
+            self.bpm_frame,
+            text="(Beats Per Minute)",
+            font=("Arial", 8, "bold")
+        )
+        self.bpmSubtitle_label.pack()
+
+        self.bpmVal_label = tk.Label(
+            self.bpm_frame,
             text="--", 
-            font=("Arial", 48, "bold"),
+            font=("Arial", 40, "bold"),
             fg="blue"
         )
-        self.value_label.pack(pady=20)
+        self.bpmVal_label.pack()
         
-        # Create label for units
-        self.unit_label = tk.Label(
-            root, 
+        self.bpm_unit_label = tk.Label(
+            self.bpm_frame, 
             text="BPM", 
             font=("Arial", 14)
         )
-        self.unit_label.pack()
+        self.bpm_unit_label.pack()
+
+        # Create frame/labels for IPM (Impulses Per Minute)
+        self.ipm_frame = tk.Frame(self.stats_frame)
+        self.ipm_frame.pack(side="left", padx=15)
+
+        self.ipm_label = tk.Label(
+            self.ipm_frame,
+            text="IPM",
+            font=("Arial", 16, "bold")
+        )
+        self.ipm_label.pack()
+        self.ipmSubtitle_label = tk.Label(
+            self.ipm_frame,
+            text="(Impulses Per Minute)",
+            font=("Arial", 8, "bold")
+        )
+        self.ipmSubtitle_label.pack()
+
+        self.ipmVal_label = tk.Label(
+            self.ipm_frame, 
+            text="--", 
+            font=("Arial", 40, "bold"),
+            fg="blue"
+        )
+        self.ipmVal_label.pack()
+        
+        self.ipm_unit_label = tk.Label(
+            self.ipm_frame, 
+            text="IPM", 
+            font=("Arial", 14)
+        )
+        self.ipm_unit_label.pack()
+
+        # Create frame/labels for HRSTD (Heart Rate Standard Deviation)
+        self.hrstd_frame = tk.Frame(self.stats_frame)
+        self.hrstd_frame.pack(side="left", padx=15)
+
+        self.hrstd_label = tk.Label(
+            self.hrstd_frame, 
+            text="HRSTD",
+            font=("Arial", 16, "bold")
+        )
+        self.hrstd_label.pack()
+        self.hrstdSubtitle_label = tk.Label(
+            self.hrstd_frame,
+            text="(Heart Rate Standard Deviation)",
+            font=("Arial", 8, "bold")
+        )
+        self.hrstdSubtitle_label.pack()
+        
+
+        self.hrstdVal_label = tk.Label(
+            self.hrstd_frame, 
+            text="--", 
+            font=("Arial", 40, "bold"),
+            fg="blue"
+        )
+        self.hrstdVal_label.pack()
+        
+        self.hrstd_unit_label = tk.Label(
+            self.hrstd_frame, 
+            text="HRSTD", 
+            font=("Arial", 14)
+        )
+        self.hrstd_unit_label.pack()
+        
+        # Create frame/labels for RMSSD (Root Mean Square of the Successive Differences)
+        self.rmssd_frame = tk.Frame(self.stats_frame)
+        self.rmssd_frame.pack(side="left", padx=15)
+
+        self.rmssd_label = tk.Label(
+            self.rmssd_frame,
+            text="RMSSD",
+            font=("Arial", 16, "bold")
+        )
+        self.rmssd_label.pack()
+        self.rmssdSubtitle_label = tk.Label(
+            self.rmssd_frame,
+            text="(Root Mean Square of the Successive Differences)",
+            font=("Arial", 8, "bold")
+        )
+        self.rmssdSubtitle_label.pack()
+
+        self.rmssdVal_label = tk.Label(
+            self.rmssd_frame, 
+            text="--", 
+            font=("Arial", 40, "bold"),
+            fg="blue"
+        )
+        self.rmssdVal_label.pack()
+        
+        self.rmssd_unit_label = tk.Label(
+            self.rmssd_frame, 
+            text="RMSSD", 
+            font=("Arial", 14)
+        )
+        self.rmssd_unit_label.pack()
         
         # # Create timestamp label
         # self.time_label = tk.Label(
@@ -60,14 +168,14 @@ class SensorDisplay:
                 value = self.read_sensor()
             
                 # Update the display
-                self.value_label.config(text=f"{value}")
+                self.bpmVal_label.config(text=f"{value}")
                 await asyncio.sleep(1)      #may need some adjusting in the future, currently server sends about 1/sec
                 #  # Update timestamp
                 # current_time = time.strftime("%H:%M:%S")
                 # self.time_label.config(text=f"Last updated: {current_time}")
             
         except Exception as e:
-            self.value_label.config(text="ERROR")
+            self.bpmVal_label.config(text="ERROR")
             print(f"Error reading sensor: {e}")
         
         # # Schedule next update (1000ms = 1 second)

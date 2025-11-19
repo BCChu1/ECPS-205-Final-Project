@@ -2,6 +2,7 @@ import asyncio
 import subprocess
 import constants
 import time
+import random
 from typing import Any
 from max30102.heartrate_monitor import HeartRateMonitor
 
@@ -92,7 +93,7 @@ async def run_server_with_custom_ads():
         hrm.start_sensor()
         while True:
             # Update the characteristic value with the current BPM
-            BPM = hrm.bpm
+            BPM = random.randint(70, 130)
             print(f"Updating BPM value to: {BPM:.2f}")
             server.get_characteristic(constants.CHARACTERISTIC_UUID).value = bytearray(f"{BPM:.2f}", 'utf-8')
             server.update_value(constants.SERVICE_UUID, constants.CHARACTERISTIC_UUID)
