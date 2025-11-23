@@ -48,7 +48,7 @@ def calculateSTD(lst : list[int]) -> float:
 def calculateRMSSD(lst : list[int]) -> float:
     if len(lst) == 0:
         return 0
-    time_between_heartbeats = [60000/bpm for bpm in lst]       #BPM * 1min/60 seconds = BPS, invert to get seconds between each beat, convert to milliseconds
+    time_between_heartbeats = [60000/bpm if bpm > 0 else 0 for bpm in lst]       #BPM * 1min/60 seconds = BPS, invert to get seconds between each beat, convert to milliseconds
     successive_differences = np.diff(time_between_heartbeats)   #successive differences
     mean_squared_differences = np.mean(successive_differences ** 2) #mean square of succ. diff.
     return np.sqrt(mean_squared_differences)
