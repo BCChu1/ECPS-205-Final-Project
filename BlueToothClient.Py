@@ -6,8 +6,12 @@ import tkinter as tk
 
 # Match these with your server UUIDs
 SERVICE_UUID = constants.SERVICE_UUID
-CHAR_UUID = constants.CHARACTERISTIC_UUID
+#CHAR_UUID = constants.CHARACTERISTIC_UUID
 heartRateValue : float = 0.0
+spo2Value : float = 0.0
+stdValue : float = 0.0
+rmssdValue : float = 0.0
+
 
 class SensorDisplay:
     def __init__(self, root):
@@ -157,7 +161,8 @@ class SensorDisplay:
         # self.time_label.pack(pady=10)
         
     def read_sensor(self):
-        global heartRateValue
+        global heartRateValue, spo2Value, stdValue, rmssdValue
+        #TODO: now have 4 values, need to update UI
         return heartRateValue
     
     async def update_sensor(self):
@@ -190,10 +195,21 @@ async def update_UI(root, interval = 0.05):
         await asyncio.sleep(interval)
 
 def notification_handler(characteristic: BleakGATTCharacteristic, data: bytearray):
-    global heartRateValue
-    """Simple notification handler which prints the data received."""
-    heartRateValue = float(data)
-    print(f"%s: %r", characteristic.description, data)
+    global heartRateValue, spo2Value, stdValue, rmssdValue
+    if characteristic.uuid == constants.BPM_CHARACTERISTIC_UUID:
+        heartRateValue = float(data)
+        print(f"BPM   : %f", heartRateValue)
+    elif characteristic.uuid == constants.SPO2_CHARACTERTISTIC_UUID:
+        spo2Value = float(data)
+        print(f"SPO2  : %f", spo2Value)
+    elif characteristic.uuid == constants.HRSTD_CHARACTERISTIC_UUID:
+        stdValue = float(data)
+        print(f"HRSTD : %f", stdValue)
+    elif characteristic.uuid == constants.RMSSD_CHARACTERISTIC_UUID:
+        rmssdValue = float(data)
+        print(f"RMSSD : %f", rmssdValue)
+    else:
+        print(f"UNKNOWN CHARACTERISTIC {characteristic}")
 
 async def run_client():
     global root, app
@@ -236,7 +252,8 @@ async def run_client():
                     # Read data from characteristic
                     #value = await client.read_gatt_char(CHAR_UUID)
                     #print(f"Read value: {value.decode()}")
-                    await client.start_notify(CHAR_UUID, notification_handler)
+                    for char in constants.CHARACTERISTIC_LIST:
+                        await client.start_notify(char, notification_handler)
                     await asyncio.gather(update_UI(root), app.update_sensor())
         
             # Write data to characteristic
@@ -251,7 +268,8 @@ async def run_client():
             # Stop the sensor after keyboard interrupt
             print('Stop monitoring!')
         finally:
-            await client.stop_notify(CHAR_UUID)
+            for char in constants.CHARACTERISTIC_LIST:
+                await client.stop_notify(char)
             await client.disconnect()
 
 if __name__ == "__main__":
