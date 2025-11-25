@@ -56,36 +56,36 @@ class SensorDisplay:
         self.bpm_unit_label.pack()
 
         # Create frame/labels for IPM (Impulses Per Minute)
-        self.ipm_frame = tk.Frame(self.stats_frame)
-        self.ipm_frame.pack(side="left", padx=15)
+        self.spo2_frame = tk.Frame(self.stats_frame)
+        self.spo2_frame.pack(side="left", padx=15)
 
-        self.ipm_label = tk.Label(
-            self.ipm_frame,
-            text="IPM",
+        self.spo2_label = tk.Label(
+            self.spo2_frame,
+            text="SpO2",
             font=("Arial", 16, "bold")
         )
-        self.ipm_label.pack()
-        self.ipmSubtitle_label = tk.Label(
-            self.ipm_frame,
-            text="(Impulses Per Minute)",
+        self.spo2_label.pack()
+        self.spo2Subtitle_label = tk.Label(
+            self.spo2_frame,
+            text="(SpO2)",
             font=("Arial", 8, "bold")
         )
-        self.ipmSubtitle_label.pack()
+        self.spo2Subtitle_label.pack()
 
-        self.ipmVal_label = tk.Label(
-            self.ipm_frame, 
+        self.spo2Val_label = tk.Label(
+            self.spo2_frame, 
             text="--", 
             font=("Arial", 40, "bold"),
             fg="blue"
         )
-        self.ipmVal_label.pack()
+        self.spo2Val_label.pack()
         
-        self.ipm_unit_label = tk.Label(
-            self.ipm_frame, 
-            text="IPM", 
+        self.spo2_unit_label = tk.Label(
+            self.spo2_frame, 
+            text="%", 
             font=("Arial", 14)
         )
-        self.ipm_unit_label.pack()
+        self.spo2_unit_label.pack()
 
         # Create frame/labels for HRSTD (Heart Rate Standard Deviation)
         self.hrstd_frame = tk.Frame(self.stats_frame)
@@ -162,18 +162,20 @@ class SensorDisplay:
         
     def read_sensor(self):
         global heartRateValue, spo2Value, stdValue, rmssdValue
-        #TODO: now have 4 values, need to update UI
-        return heartRateValue
+        return heartRateValue, spo2Value, stdValue, rmssdValue
     
     async def update_sensor(self):
         """Update the sensor reading"""
         try:
             while True:
                 # Read sensor value
-                value = self.read_sensor()
+                hr, spo, std, rmssd = self.read_sensor()
             
                 # Update the display
-                self.bpmVal_label.config(text=f"{value}")
+                self.bpmVal_label.config(text=f"{hr}")
+                self.spo2Val_label.config(text=f"{spo}")
+                self.hrstdVal_label.config(text=f"{std}")
+                self.rmssdVal_label.config(text=f"{rmssd}")
                 await asyncio.sleep(1)      #may need some adjusting in the future, currently server sends about 1/sec
                 #  # Update timestamp
                 # current_time = time.strftime("%H:%M:%S")
