@@ -4,6 +4,9 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 import constants
 import tkinter as tk
 import threading
+import logging
+from datetime import datetime
+logger = logging.getLogger(__name__)
 
 # Match these with your server UUIDs
 SERVICE_UUID = constants.SERVICE_UUID
@@ -31,6 +34,15 @@ class SensorDisplay:
         #try auto-connecting when we first launch
         thread = threading.Thread(target=self.connectThread, daemon=True)
         thread.start()
+
+        #create the log file for our data
+        now = datetime.now()
+        file_handler = logging.FileHandler(now.strftime("HeartRateMonitor_%Y%m%d_%H%M%S.log"))
+        file_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logging.basicConfig(level=logging.INFO)
 
     #clear all items from window
     def clearAll(self):
@@ -257,12 +269,14 @@ class SensorDisplay:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         print("Connecting...")
+        logger.info(f'Connecting to sensor {address}')
         loop.run_until_complete(self.connectToServer(address))
         loop.close()
 
     #update selection screen with BT devices
     def startScan(self):
         self.device_listbox.delete(0, tk.END)
+        logger.info('Scanning for sensors')
         self.device_listbox.insert(tk.END, "Scanning for devices...")
         self.status_label.config(text="Scanning...", fg="blue")
         
@@ -317,11 +331,14 @@ class SensorDisplay:
             for device in devices:
                 print(f"Found: {device.name} - {device.address}")
                 if device.name == constants.BLUETOOTH_SERVER_LOCALNAME:  # Match your server name
+                    logger.info(f"Found sensor: {device.name} - {device.address}")
+                    logger.info('Connecting...')
                     self.target_device = device
                     break
         
             if not self.target_device:
                 print("Server not found!")
+                logger.info('Server not found! Prompting user...')
                 self.root.after(0, self.showDeviceSelectionScreen)
                 return
             
@@ -344,8 +361,11 @@ class SensorDisplay:
                 print("Starting monitoring sensor...")
                 self.root.after(0, self.showDataScreen)
                 if client.is_connected:
+                    logger.info('Connected')
                     for char in constants.CHARACTERISTIC_LIST:
                         await client.start_notify(char, notification_handler)
+                else:
+                    logger.info('Connection failed')
                 while client.is_connected:
     #                await client.connect()
                     #if client.is_connected:
@@ -391,20 +411,33 @@ def notification_handler(characteristic: BleakGATTCharacteristic, data: bytearra
     global heartRateValue, spo2Value, stdValue, rmssdValue
     if characteristic.uuid == constants.BPM_CHARACTERISTIC_UUID:
         heartRateValue = float(data)
+        logger.info(f'Recieved heart rate of {heartRateValue} bpm')
         print(f"BPM   :{heartRateValue}")
     elif characteristic.uuid == constants.SPO2_CHARACTERTISTIC_UUID:
         spo2Value = float(data)
+        logger.info(f'Recieved blood oxygen of {spo2Value} sp02')
         print(f"SPO2  :{spo2Value}")
     elif characteristic.uuid == constants.HRSTD_CHARACTERISTIC_UUID:
         stdValue = float(data)
+        logger.info(f'Recieved heart rate standard deviation of {stdValue} hrstd')
         print(f"HRSTD :{stdValue}")
     elif characteristic.uuid == constants.RMSSD_CHARACTERISTIC_UUID:
         rmssdValue = float(data)
+        logger.info(f'Recieved heart rate root mean squared standard deviation of {rmssdValue} rmssd')
         print(f"RMSSD :{rmssdValue}")
     else:
+        logger.info(f'Recieved unknown/invalid characteristic {characteristic}')
         print(f"UNKNOWN CHARACTERISTIC {characteristic}")
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = SensorDisplay(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = SensorDisplay(root)
+        root.mainloop()
+    except KeyboardInterrupt:
+        logger.info('Recieved keyboard interrupt, stopping client.')
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.flush()
+                handler.close()
+                logger.removeHandler(handler)
