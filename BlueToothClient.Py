@@ -3,6 +3,7 @@ from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 import constants
 import tkinter as tk
+import threading
 
 # Match these with your server UUIDs
 SERVICE_UUID = constants.SERVICE_UUID
@@ -14,15 +15,46 @@ rmssdValue : float = 0.0
 
 
 class SensorDisplay:
-    def __init__(self, root):
+    def __init__(self, root : tk.Tk):
         self.root = root
         self.root.title("Heartrate Monitor")
-        self.root.geometry("870x250")
-        
+        self.root.geometry("500x250")
+    
+         # Container frame
+        self.container = tk.Frame(root)
+        self.container.pack(fill="both", expand=True)
+
+        self.devices = []
+        self.target_device = None
+        self.showConnectionScreen()
+
+        #try auto-connecting when we first launch
+        thread = threading.Thread(target=self.connectThread, daemon=True)
+        thread.start()
+
+    #clear all items from window
+    def clearAll(self):
+        for widget in self.container.winfo_children():
+            widget.destroy()
+
+    #show connecting message screen 
+    def showConnectionScreen(self):
+        self.clearAll()
+        self.root.geometry("500x250")
+        label = tk.Label(
+            self.container, 
+            text="Connecting...", 
+            font=("Arial", 16)
+        )
+        label.pack(expand=True)
+
+    #show screen with 4 values (BPM, SPO2, HRSTD, RMSSD)
+    def showDataScreen(self):
+        self.clearAll()
+        self.root.geometry("850x200")
         # General Frame for all the stats
         self.stats_frame = tk.Frame(root)
         self.stats_frame.pack(side="top", fill="x", padx=20, pady=10, anchor="n")
-
         # Create frame/labels for BPM (Beats Per Minute)
         self.bpm_frame = tk.Frame(self.stats_frame)
         self.bpm_frame.pack(side="left", padx=15)
@@ -151,32 +183,199 @@ class SensorDisplay:
             font=("Arial", 14)
         )
         self.rmssd_unit_label.pack()
+
+    #show screen that allows you to manually find device to pair (if auto-connect fails)
+    def showDeviceSelectionScreen(self):
+        self.clearAll()
+        self.root.geometry("500x400")
+       # Title
+        title = tk.Label(
+            self.container, 
+            text="Select Bluetooth Device", 
+            font=("Arial", 14, "bold")
+        )
+        title.pack(pady=15)
         
-        # # Create timestamp label
-        # self.time_label = tk.Label(
-        #     root, 
-        #     text="Last updated: --", 
-        #     font=("Arial", 10)
-        # )
-        # self.time_label.pack(pady=10)
+        # Frame for listbox and scrollbar
+        list_frame = tk.Frame(self.container)
+        list_frame.pack(pady=10, padx=20, fill="both", expand=True)
         
-    def read_sensor(self):
-        global heartRateValue, spo2Value, stdValue, rmssdValue
-        return heartRateValue, spo2Value, stdValue, rmssdValue
+        # Scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Listbox for devices
+        self.device_listbox = tk.Listbox(
+            list_frame, 
+            height=8,
+            yscrollcommand=scrollbar.set,
+            font=("Arial", 10)
+        )
+        self.device_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.device_listbox.yview)
+        
+        # Status label
+        self.status_label = tk.Label(
+            self.container, 
+            text="Click 'Refresh' to scan for devices", 
+            font=("Arial", 9),
+            fg="gray"
+        )
+        self.status_label.pack(pady=5)
+        
+        # Button frame
+        button_frame = tk.Frame(self.container)
+        button_frame.pack(pady=15)
+        
+        refresh_btn = tk.Button(
+            button_frame, 
+            text="🔄 Refresh", 
+            command=self.startScan,
+            width=12,
+            font=("Arial", 10)
+        )
+        refresh_btn.pack(side="left", padx=5)
+        
+        connect_btn = tk.Button(
+            button_frame, 
+            text="Connect", 
+            command=self.connectToSelectedDevice,
+            width=12,
+            font=("Arial", 10),
+            bg="#4CAF50",
+            fg="white"
+        )
+        connect_btn.pack(side="left", padx=5)
+        # Auto-scan on show
+        self.startScan()
+
+    #since we are working in TKinter, in-order to do anything with asyncio(or async in general) in a synchronous way you have to:
+    #create a thread
+    #set up an asyncio loop in the thread
+    #run w/e async method you need to run in it
+    def connectThread(self, address = None):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        print("Connecting...")
+        loop.run_until_complete(self.connectToServer(address))
+        loop.close()
+
+    #update selection screen with BT devices
+    def startScan(self):
+        self.device_listbox.delete(0, tk.END)
+        self.device_listbox.insert(tk.END, "Scanning for devices...")
+        self.status_label.config(text="Scanning...", fg="blue")
+        
+        thread = threading.Thread(target=self.updateListBox, daemon=True)
+        thread.start()
     
-    async def update_sensor(self):
-        """Update the sensor reading"""
+    #filling in the list box, (I have async methods so I need an asyncio loop to run them syncrhonously)
+    def updateListBox(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)     
         try:
-            while True:
-                # Read sensor value
-                hr, spo, std, rmssd = self.read_sensor()
+            self.devices.clear()
+            devices = loop.run_until_complete(BleakScanner.discover(timeout=5.0))
+            #self.root.after(0, self.updateListBox, devices)
+            if not devices:
+                self.device_listbox.insert(tk.END, "No devices found")
+                self.status_label.config(text="No devices found. Click Refresh to try again.", fg="orange")
+                return
+            # Sort devices: named devices first, then by signal strength
+            devices_sorted = sorted(devices, key=lambda d: (d.name is None, -(d.rssi if hasattr(d, 'rssi') else -100)))
+            self.device_listbox.delete(0, tk.END)
+            for i, device in enumerate(devices_sorted):
+                name = device.name or "Unknown Device"
+                rssi = f" ({device.rssi} dBm)" if hasattr(device, 'rssi') else ""
+                display = f"{name}{rssi}\n  {device.address}"
+                self.device_listbox.insert(tk.END, display)
+                self.devices.append(device.address)
             
+            self.status_label.config(text=f"Found {len(devices)} device(s). Select one and click Connect.", fg="green")
+        finally:
+            loop.close()
+
+    #handles button press to connect to a selected device
+    def connectToSelectedDevice(self):
+        selection = self.device_listbox.curselection()
+        if not selection:
+            return
+        
+        address = self.devices[selection[0]]
+        self.showConnectionScreen()
+        self.root.update()
+        #YOU NEED THE LAMBDA HERE OR ELSE IT GETS STUCK
+        thread = threading.Thread(target = lambda: self.connectThread(address), daemon=True)
+        thread.start()
+
+    #handles looking for the bluetooth server or connecting to it directly
+    async def connectToServer(self, address):
+        if not address:
+            devices = await BleakScanner.discover(timeout=10.0)
+            #await asyncio.sleep(5)
+            # Find your server by name
+            for device in devices:
+                print(f"Found: {device.name} - {device.address}")
+                if device.name == constants.BLUETOOTH_SERVER_LOCALNAME:  # Match your server name
+                    self.target_device = device
+                    break
+        
+            if not self.target_device:
+                print("Server not found!")
+                self.root.after(0, self.showDeviceSelectionScreen)
+                return
+            
+            await self.connect(self.target_device.address)
+        else:
+            await self.connect(address)
+
+    #function that handles the connection and listening for data
+    async def connect(self, address):
+        async with BleakClient(address, timeout=10) as client:
+            print(f"Connected: {client.is_connected}")
+            await asyncio.sleep(3)          #small delay after to allow for some stability (if this is not here, causes exceptions when reading characteristic)
+            # List services
+            # for service in client.services:
+            #     print(f"Service: {service.uuid}")
+            #     for char in service.characteristics:
+            #         print(f"  Characteristic: {char.uuid}")
+
+            try:
+                print("Starting monitoring sensor...")
+                self.root.after(0, self.showDataScreen)
+                if client.is_connected:
+                    for char in constants.CHARACTERISTIC_LIST:
+                        await client.start_notify(char, notification_handler)
+                while client.is_connected:
+    #                await client.connect()
+                    #if client.is_connected:
+                        # Read data from characteristic
+                        #value = await client.read_gatt_char(CHAR_UUID)
+                        #print(f"Read value: {value.decode()}")
+                        # for char in constants.CHARACTERISTIC_LIST:
+                        #     await client.start_notify(char, notification_handler)
+                    self.root.after(0, self.updateValues)       #update UI
+                    await asyncio.sleep(1)
+            
+            except KeyboardInterrupt:
+                # Stop the sensor after keyboard interrupt
+                print('Stop monitoring!')
+            finally:
+                for char in constants.CHARACTERISTIC_LIST:
+                    await client.stop_notify(char)
+                await client.disconnect()
+
+    def updateValues(self):
+        """Update the sensor reading"""
+        global heartRateValue, spo2Value, stdValue, rmssdValue
+        try:
+            #while True:
                 # Update the display
-                self.bpmVal_label.config(text=f"{hr}")
-                self.spo2Val_label.config(text=f"{spo}")
-                self.hrstdVal_label.config(text=f"{std}")
-                self.rmssdVal_label.config(text=f"{rmssd}")
-                await asyncio.sleep(1)      #may need some adjusting in the future, currently server sends about 1/sec
+            self.bpmVal_label.config(text=f"{heartRateValue}")
+            self.spo2Val_label.config(text=f"{spo2Value}")
+            self.hrstdVal_label.config(text=f"{stdValue}")
+            self.rmssdVal_label.config(text=f"{rmssdValue}")
+            #await asyncio.sleep(1)      #may need some adjusting in the future, currently server sends about 1/sec
                 #  # Update timestamp
                 # current_time = time.strftime("%H:%M:%S")
                 # self.time_label.config(text=f"Last updated: {current_time}")
@@ -188,91 +387,24 @@ class SensorDisplay:
         # # Schedule next update (1000ms = 1 second)
         # self.root.after(1000, self.update_sensor)
 
-root = tk.Tk()
-app = SensorDisplay(root)
-
-async def update_UI(root, interval = 0.05):
-    while True:
-        root.update()
-        await asyncio.sleep(interval)
-
 def notification_handler(characteristic: BleakGATTCharacteristic, data: bytearray):
     global heartRateValue, spo2Value, stdValue, rmssdValue
     if characteristic.uuid == constants.BPM_CHARACTERISTIC_UUID:
         heartRateValue = float(data)
-        print(f"BPM   : %f", heartRateValue)
+        print(f"BPM   :{heartRateValue}")
     elif characteristic.uuid == constants.SPO2_CHARACTERTISTIC_UUID:
         spo2Value = float(data)
-        print(f"SPO2  : %f", spo2Value)
+        print(f"SPO2  :{spo2Value}")
     elif characteristic.uuid == constants.HRSTD_CHARACTERISTIC_UUID:
         stdValue = float(data)
-        print(f"HRSTD : %f", stdValue)
+        print(f"HRSTD :{stdValue}")
     elif characteristic.uuid == constants.RMSSD_CHARACTERISTIC_UUID:
         rmssdValue = float(data)
-        print(f"RMSSD : %f", rmssdValue)
+        print(f"RMSSD :{rmssdValue}")
     else:
         print(f"UNKNOWN CHARACTERISTIC {characteristic}")
 
-async def run_client():
-    global root, app
-    print("Scanning for BLE devices...")
-    
-    # Scan for devices
-    devices = await BleakScanner.discover(timeout=10.0)
-    await asyncio.sleep(5)
-    
-    # Find your server by name
-    target_device = None
-    for device in devices:
-        print(f"Found: {device.name} - {device.address}")
-        if device.name == constants.BLUETOOTH_SERVER_LOCALNAME:  # Match your server name
-            target_device = device
-            break
-    
-    if not target_device:
-        print("Server not found!")
-        return
-    
-    print(f"\nConnecting to {target_device.name} ({target_device.address})...")
-    
-    # Connect to the device
-    async with BleakClient(target_device.address, timeout=10) as client:
-        print(f"Connected: {client.is_connected}")
-        await asyncio.sleep(10)          #small delay after to allow for some stability (if this is not here, causes exceptions when reading characteristic)
-         # List services
-        # for service in client.services:
-        #     print(f"Service: {service.uuid}")
-        #     for char in service.characteristics:
-        #         print(f"  Characteristic: {char.uuid}")
-
-        try:
-            print("Starting monitoring sensor...")
-
-            while True:
-#                await client.connect()
-                if client.is_connected:
-                    # Read data from characteristic
-                    #value = await client.read_gatt_char(CHAR_UUID)
-                    #print(f"Read value: {value.decode()}")
-                    for char in constants.CHARACTERISTIC_LIST:
-                        await client.start_notify(char, notification_handler)
-                    await asyncio.gather(update_UI(root), app.update_sensor())
-        
-            # Write data to characteristic
-            #data_to_send = b"Hello from client!"
-            #await client.write_gatt_char(CHAR_UUID, data_to_send)
-            #print(f"Wrote: {data_to_send.decode()}")
-        
-            # Read back to verify
-            #value = await client.read_gatt_char(CHAR_UUID)
-            #print(f"Read after write: {value}")
-        except KeyboardInterrupt:
-            # Stop the sensor after keyboard interrupt
-            print('Stop monitoring!')
-        finally:
-            for char in constants.CHARACTERISTIC_LIST:
-                await client.stop_notify(char)
-            await client.disconnect()
-
 if __name__ == "__main__":
-    asyncio.run(run_client())
+    root = tk.Tk()
+    app = SensorDisplay(root)
+    root.mainloop()
