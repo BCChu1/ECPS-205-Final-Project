@@ -394,43 +394,46 @@ class SensorDisplay:
 
     #function that handles the connection and listening for data
     async def connect(self, address):
-        async with BleakClient(address, timeout=10) as client:
-            print(f"Connected: {client.is_connected}")
-            await asyncio.sleep(3)          #small delay after to allow for some stability (if this is not here, causes exceptions when reading characteristic)
-            # List services
-            # for service in client.services:
-            #     print(f"Service: {service.uuid}")
-            #     for char in service.characteristics:
-            #         print(f"  Characteristic: {char.uuid}")
+        try:
+            async with BleakClient(address, timeout=10) as client:
+                print(f"Connected: {client.is_connected}")
+                await asyncio.sleep(3)          #small delay after to allow for some stability (if this is not here, causes exceptions when reading characteristic)
+                # List services
+                # for service in client.services:
+                #     print(f"Service: {service.uuid}")
+                #     for char in service.characteristics:
+                #         print(f"  Characteristic: {char.uuid}")
 
-            try:
-                print("Starting monitoring sensor...")
-                self.root.after(0, self.showDataScreen)
-                if client.is_connected:
-                    logger.info('Connected')
+                try:
+                    print("Starting monitoring sensor...")
+                    if client.is_connected:
+                        logger.info('Connected')
+                        for char in constants.CHARACTERISTIC_LIST:
+                            await client.start_notify(char, notification_handler)
+                        self.root.after(0, self.showDataScreen)
+                    else:
+                        logger.info('Connection failed')
+                    while client.is_connected:
+        #                await client.connect()
+                        #if client.is_connected:
+                            # Read data from characteristic
+                            #value = await client.read_gatt_char(CHAR_UUID)
+                            #print(f"Read value: {value.decode()}")
+                            # for char in constants.CHARACTERISTIC_LIST:
+                            #     await client.start_notify(char, notification_handler)
+                        self.root.after(0, self.updateValues)       #update UI
+                        await asyncio.sleep(1)
+                
+                except KeyboardInterrupt:
+                    # Stop the sensor after keyboard interrupt
+                    print('Stop monitoring!')
+                finally:
                     for char in constants.CHARACTERISTIC_LIST:
-                        await client.start_notify(char, notification_handler)
-                else:
-                    logger.info('Connection failed')
-                while client.is_connected:
-    #                await client.connect()
-                    #if client.is_connected:
-                        # Read data from characteristic
-                        #value = await client.read_gatt_char(CHAR_UUID)
-                        #print(f"Read value: {value.decode()}")
-                        # for char in constants.CHARACTERISTIC_LIST:
-                        #     await client.start_notify(char, notification_handler)
-                    self.root.after(0, self.updateValues)       #update UI
-                    await asyncio.sleep(1)
-            
-            except KeyboardInterrupt:
-                # Stop the sensor after keyboard interrupt
-                print('Stop monitoring!')
-            finally:
-                for char in constants.CHARACTERISTIC_LIST:
-                    await client.stop_notify(char)
-                await client.disconnect()
-
+                        await client.stop_notify(char)
+                    await client.disconnect()
+        except Exception as e:
+            print(e)
+            self.root.after(0, self.showDeviceSelectionScreen)
     def updateValues(self):
         """Update the sensor reading"""
         global heartRateValue, spo2Value, stdValue, rmssdValue
