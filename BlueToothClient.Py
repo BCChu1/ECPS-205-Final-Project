@@ -7,6 +7,8 @@ import threading
 import logging
 from datetime import datetime
 logger = logging.getLogger(__name__)
+import matplotlib.pyplot as plt
+import collections
 
 # Match these with your server UUIDs
 SERVICE_UUID = constants.SERVICE_UUID
@@ -16,6 +18,49 @@ spo2Value : float = 0.0
 stdValue : float = 0.0
 rmssdValue : float = 0.0
 
+update = False
+
+bpmidx = 0
+spo2idx = 0
+stdidx = 0
+rmssdidx = 0
+
+bpmStamps = collections.deque(maxlen=30)
+spo2Stamps = collections.deque(maxlen=30)
+stdStamps = collections.deque(maxlen=30)
+rmssdStamps = collections.deque(maxlen=30)
+
+recvBPM = collections.deque(maxlen=30)
+recvSPO2 = collections.deque(maxlen=30)
+recvSTD = collections.deque(maxlen=30)
+recvRMSSD = collections.deque(maxlen=30)
+
+#plt.ion()
+fig, ((pltBPM, pltSPO2), (pltSTD, pltRMSSD)) = plt.subplots(2, 2, figsize=(30, 10))
+
+pltBPM.set_ylim(0, 300)
+pltBPM.set_xlabel('Time Stamp (seconds)')
+pltBPM.set_ylabel('Reading')
+pltBPM.set_title(f"BPM")
+lineBPM, = pltBPM.plot([], [])
+
+pltSPO2.set_ylim(0, 100)
+pltSPO2.set_xlabel('Time Stamp (seconds)')
+pltSPO2.set_ylabel('Reading')
+pltSPO2.set_title(f"SPO2")
+lineSPO2, = pltSPO2.plot([], [])
+
+pltSTD.set_ylim(0, 300)
+pltSTD.set_xlabel('Time Stamp (seconds)')
+pltSTD.set_ylabel('Reading')
+pltSTD.set_title(f"STD")
+lineSTD, = pltSTD.plot([], [])
+
+pltRMSSD.set_ylim(0, 1000)
+pltRMSSD.set_xlabel('Time Stamp (seconds)')
+pltRMSSD.set_ylabel('Reading')
+pltRMSSD.set_title(f"RMSSD")
+lineRMSSD, = pltRMSSD.plot([], [])
 
 class SensorDisplay:
     def __init__(self, root : tk.Tk):
@@ -285,6 +330,7 @@ class SensorDisplay:
     
     #filling in the list box, (I have async methods so I need an asyncio loop to run them syncrhonously)
     def updateListBox(self):
+        global update
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)     
         try:
@@ -403,37 +449,130 @@ class SensorDisplay:
         except Exception as e:
             self.bpmVal_label.config(text="ERROR")
             print(f"Error reading sensor: {e}")
+
+        if (update):
+            fig.canvas.draw_idle()
+            fig.canvas.flush_events()
+            plt.pause(0.01)
         
         # # Schedule next update (1000ms = 1 second)
         # self.root.after(1000, self.update_sensor)
 
 def notification_handler(characteristic: BleakGATTCharacteristic, data: bytearray):
-    global heartRateValue, spo2Value, stdValue, rmssdValue
+    global heartRateValue, spo2Value, stdValue, rmssdValue, recvBPM, recvSPO2, recvSTD, recvRMSSD, bpmStamps, spo2Stamps, stdStamps, rmssdStamps, fig, pltBPM, pltSPO2, pltSTD, pltRMSSD, bpmidx, spo2idx, stdidx, rmssdidx, update
     if characteristic.uuid == constants.BPM_CHARACTERISTIC_UUID:
         heartRateValue = float(data)
         logger.info(f'Recieved heart rate of {heartRateValue} bpm')
         print(f"BPM   :{heartRateValue}")
+
+        if (len(bpmStamps) >= 30):
+           bpmStamps.popleft()
+           recvBPM.popleft()
+        recvBPM.append(heartRateValue)
+        bpmStamps.append(bpmidx)
+
+        if (len(bpmStamps) > 0):
+            minT = min(bpmStamps)
+            maxT = max(bpmStamps)
+        else:
+            minT = 0
+            maxT = 1 
+
+        pltBPM.set_xlim(minT, maxT)
+        pltBPM.set_xticks(range(minT, maxT))
+        lineBPM.set_data(bpmStamps, recvBPM)
+        bpmidx += 1
+        update = True
+
     elif characteristic.uuid == constants.SPO2_CHARACTERTISTIC_UUID:
         spo2Value = float(data)
         logger.info(f'Recieved blood oxygen of {spo2Value} sp02')
         print(f"SPO2  :{spo2Value}")
+
+        if (len(spo2Stamps) >= 30):
+           spo2Stamps.popleft()
+           recvSPO2.popleft()
+        recvSPO2.append(spo2Value)
+        spo2Stamps.append(spo2idx)
+
+        if (len(spo2Stamps) > 0):
+            minT = min(spo2Stamps)
+            maxT = max(spo2Stamps)
+        else:
+            minT = 0
+            maxT = 1
+
+        pltSPO2.set_xlim(minT, maxT)
+        pltSPO2.set_xticks(range(minT, maxT))
+        lineSPO2.set_data(spo2Stamps, recvSPO2)
+        spo2idx += 1
+        update = True
+
     elif characteristic.uuid == constants.HRSTD_CHARACTERISTIC_UUID:
         stdValue = float(data)
         logger.info(f'Recieved heart rate standard deviation of {stdValue} hrstd')
         print(f"HRSTD :{stdValue}")
+
+        if (len(stdStamps) >= 30):
+           stdStamps.popleft()
+           recvSTD.popleft()
+        recvSTD.append(stdValue)
+        stdStamps.append(stdidx)
+
+        if (len(stdStamps) > 0):
+            minT = min(stdStamps)
+            maxT = max(stdStamps)
+        else:
+            minT = 0
+            maxT = 1
+
+        pltSTD.set_xlim(minT, maxT)
+        pltSTD.set_xticks(range(minT, maxT))
+        lineSTD.set_data(stdStamps, recvSTD)
+        stdidx += 1
+        update = True
+
     elif characteristic.uuid == constants.RMSSD_CHARACTERISTIC_UUID:
         rmssdValue = float(data)
         logger.info(f'Recieved heart rate root mean squared standard deviation of {rmssdValue} rmssd')
         print(f"RMSSD :{rmssdValue}")
+
+        if (len(rmssdStamps) >= 30):
+           rmssdStamps.popleft()
+           recvRMSSD.popleft()
+        recvRMSSD.append(rmssdValue)
+        rmssdStamps.append(rmssdidx)
+
+        if (len(rmssdStamps) > 0):
+            minT = min(rmssdStamps)
+            maxT = max(rmssdStamps)
+        else:
+            minT = 0
+            maxT = 1
+
+        pltRMSSD.set_xlim(minT, maxT)
+        pltRMSSD.set_xticks(range(minT, maxT))
+        lineRMSSD.set_data(rmssdStamps, recvRMSSD)
+        rmssdidx += 1
+        update = True
+
     else:
         logger.info(f'Recieved unknown/invalid characteristic {characteristic}')
         print(f"UNKNOWN CHARACTERISTIC {characteristic}")
+        update = False
 
 if __name__ == "__main__":
     try:
         root = tk.Tk()
         app = SensorDisplay(root)
+
         root.mainloop()
+        while(1):
+            if (update):
+                fig.canvas.draw_idle()
+                fig.canvas.flush_events()
+                plt.pause(1)
+
     except KeyboardInterrupt:
         logger.info('Recieved keyboard interrupt, stopping client.')
         for handler in logger.handlers:
